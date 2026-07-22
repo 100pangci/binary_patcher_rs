@@ -5,9 +5,7 @@
 ---
 
 一个用于生成和应用二进制补丁的工具，支持整目录补丁工作流。
-底层补丁引擎使用 [HDiffPatch](https://github.com/sisong/HDiffPatch)（`hdiffz` / `hpatchz`）。
-
-运行时需要 `hdiffz` 和 `hpatchz` 二进制文件（详见[安装](#安装)）。
+底层补丁引擎使用 [HDiffPatch](https://github.com/sisong/HDiffPatch)，通过 FFI 静态链接 C 库，构建时自动下载编译。
 
 ## 功能
 
@@ -32,10 +30,6 @@
 
 ## 安装
 
-### 预编译二进制
-
-> **TODO**: 预编译包尚未发布。关注 [#1](https://github.com/100pangci/binary_patcher/issues/1) 了解发布状态。
-
 ### 从源码编译
 
 ```sh
@@ -44,17 +38,17 @@ cd binary_patcher
 cargo build --release
 ```
 
-编译后的可执行文件位于 `target/release/`。
+编译自动下载 HDiffPatch C 库并静态链接，无需额外依赖。可执行文件位于 `target/release/`。
 
-### HDiffPatch 依赖
+### 预编译包
 
-从 [HDiffPatch 发布页](https://github.com/sisong/HDiffPatch/releases) 下载 `hdiffz` 和 `hpatchz`，放在以下任一位置：
+运行 `scripts/build.ps1` 可一键构建并打包为 `Releases/binary_patcher_toolkit.zip`：
 
-| 位置 | 示例 |
-|------|------|
-| 与可执行文件同目录 | `.` |
-| `bin/` 子目录 | `./bin/` |
-| `PATH` 中的任意目录 | — |
+```powershell
+.\scripts\build.ps1
+```
+
+关注 [#1](https://github.com/100pangci/binary_patcher/issues/1) 获取正式发布状态。
 
 ## 快速开始
 
@@ -108,7 +102,7 @@ binary_patcher
 
 1. 校验每个文件是否匹配 `old_sha256`
 2. 将原文件备份为 `*.backup_before_patch`
-3. 通过 `hpatchz` 应用补丁
+3. 通过 HDiffPatch 引擎应用补丁
 4. 验证输出是否匹配 `new_sha256`
 5. 复制新增文件，删除已移除的文件
 
@@ -130,6 +124,7 @@ binary_patcher
 | `create <旧文件> <新文件> <补丁文件>` | 对两个文件创建单个补丁 |
 | `apply <旧文件> <补丁文件> <输出文件>` | 应用单个补丁 |
 | `bundle --base-dir <路径>` | 指定工作目录执行打包 |
+| `--copy-scripts` | （兼容选项，Rust 版本无效） |
 
 ### `apply_patch`
 
@@ -147,26 +142,32 @@ binary_patcher
 
 ```
 .
+├── build.rs                 # 构建脚本：自动下载并编译 HDiffPatch C 库
 ├── .github/workflows/
 │   ├── ci.yml               # CI: cargo check + test（多平台）
 │   └── build.yml            # Release: lint → test → 构建 → GitHub Release
 ├── scripts/
-│   └── build.ps1            # Windows 一键构建 + HDiffPatch 下载 + 打包
+│   ├── build.ps1            # Windows 一键构建 + 打包
+│   └── gen_test_data.ps1    # 测试数据生成脚本
+├── vendor/
+│   └── hdiffpatch-sys/      # HDiffPatch C/C++ 包装代码
 ├── Cargo.toml
 ├── src/
+│   ├── lib.rs               # 库入口，公开所有模块
 │   ├── main.rs              # binary_patcher 入口
 │   ├── bin/
 │   │   ├── apply_patch.rs   # apply_patch 入口
 │   │   └── rollback_patch.rs# rollback_patch 入口
 │   ├── cli.rs               # 命令行参数解析（clap）
+│   ├── ffi.rs               # HDiffPatch C 库 FFI 绑定
+│   ├── hdiffpatch.rs        # 补丁创建/应用调用封装
 │   ├── utils.rs             # SHA256、文件操作、路径安全、备份
-│   ├── hdiffpatch.rs        # hdiffz/hpatchz 查找与调用
 │   ├── manifest.rs          # Manifest 类型、JSON 序列化、校验
 │   ├── bundle.rs            # 整目录打包（Old/New → Patch）
 │   ├── apply.rs             # 补丁应用逻辑
 │   └── rollback.rs          # 补丁回滚逻辑
 └── tests/
-    └── integration_test.rs  # 20 个测试（单元 + 全流程）
+    └── integration_test.rs  # 单元测试 + 全流程集成测试
 ```
 
 ## 安全
@@ -204,9 +205,8 @@ cargo build --release
 ```
 
 脚本自动：
-1. `cargo build --release` 编译三个二进制文件
-2. 从 GitHub 下载最新 HDiffPatch（`hdiffz.exe` / `hpatchz.exe`）
-3. 打包为 `Releases/binary_patcher_toolkit.zip`
+1. `cargo build --release` 编译三个二进制文件（构建时自动下载编译 HDiffPatch C 库）
+2. 将可执行文件及 HDiffPatch 工具收集到 `Releases/binary_patcher_toolkit.zip`
 
 ### CI / CD
 
@@ -231,8 +231,11 @@ cargo build --release
 | 序列化 | serde + serde_json |
 | 哈希 | sha2 |
 | 目录遍历 | walkdir |
+| 时间处理 | chrono |
+| 终端检测 | atty |
 | 错误处理 | anyhow |
-| 补丁引擎 | [HDiffPatch](https://github.com/sisong/HDiffPatch)（外部二进制） |
+| 构建依赖 | cc（编译 C/C++）、reqwest + zip（自动下载 HDiffPatch） |
+| 补丁引擎 | [HDiffPatch](https://github.com/sisong/HDiffPatch)（FFI 静态链接） |
 
 ## 许可证
 

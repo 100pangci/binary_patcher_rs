@@ -5,9 +5,7 @@
 ---
 
 バイナリパッチを作成・適用するためのツールです。ディレクトリ全体のパッチワークフローに対応しています。
-パッチエンジンには [HDiffPatch](https://github.com/sisong/HDiffPatch)（`hdiffz` / `hpatchz`）を使用しています。
-
-実行時には `hdiffz` および `hpatchz` のバイナリが必要です（詳しくは[インストール](#インストール)を参照）。
+パッチエンジンには [HDiffPatch](https://github.com/sisong/HDiffPatch) を使用し、FFI 静的リンクで統合。ビルド時に自動的に C ライブラリをダウンロードしてコンパイルします。
 
 ## 機能
 
@@ -34,7 +32,7 @@
 
 ### プレビルドバイナリ
 
-> **TODO**: プレビルドバイナリはまだ提供されていません。リリース状況は [#1](https://github.com/100pangci/binary_patcher/issues/1) を参照してください。
+> **TODO**: プレビルドバイナリはまだ正式に提供されていません。リリース状況は [#1](https://github.com/100pangci/binary_patcher/issues/1) を参照してください。
 
 ### ソースからビルド
 
@@ -44,17 +42,16 @@ cd binary_patcher
 cargo build --release
 ```
 
+ビルド時に HDiffPatch C ライブラリを自動ダウンロードし静的リンクします。追加の依存関係は不要です。
 コンパイルされたバイナリは `target/release/` に配置されます。
 
-### HDiffPatch 依存
+### パッケージ
 
-[HDiffPatch リリースページ](https://github.com/sisong/HDiffPatch/releases) から `hdiffz` と `hpatchz` をダウンロードし、以下のいずれかの場所に配置してください：
+`scripts/build.ps1` を実行すると、`Releases/binary_patcher_toolkit.zip` にパッケージ化します：
 
-| 配置場所 | 例 |
-|----------|-----|
-| 実行ファイルと同じディレクトリ | `.` |
-| `bin/` サブディレクトリ | `./bin/` |
-| `PATH` が通ったディレクトリ | — |
+```powershell
+.\scripts\build.ps1
+```
 
 ## クイックスタート
 
@@ -108,7 +105,7 @@ binary_patcher
 
 1. 各ファイルが `old_sha256` と一致するか検証
 2. 元のファイルを `*.backup_before_patch` としてバックアップ
-3. `hpatchz` でパッチを適用
+3. HDiffPatch エンジンでパッチを適用
 4. 出力が `new_sha256` と一致するか検証
 5. 新規ファイルをコピー、削除されたファイルを削除
 
@@ -130,6 +127,7 @@ binary_patcher
 | `create <旧> <新> <パッチ>` | 2 つのファイルから単一のパッチファイルを作成 |
 | `apply <旧> <パッチ> <出力>` | 単一のパッチファイルを適用 |
 | `bundle --base-dir <パス>` | 指定したワークスペースディレクトリでバンドルを生成 |
+| `--copy-scripts` | （互換オプション、Rust 版では無効） |
 
 ### `apply_patch`
 
@@ -147,26 +145,32 @@ binary_patcher
 
 ```
 .
+├── build.rs                 # ビルドスクリプト：HDiffPatch C ライブラリを自動DL・コンパイル
 ├── .github/workflows/
 │   ├── ci.yml               # CI: cargo check + test（マルチプラットフォーム）
 │   └── build.yml            # Release: lint → test → ビルド → GitHub Release
 ├── scripts/
-│   └── build.ps1            # Windows ワンクリックビルド + HDiffPatch ダウンロード + パッケージ
+│   ├── build.ps1            # Windows ワンクリックビルド + パッケージ
+│   └── gen_test_data.ps1    # テストデータ生成スクリプト
+├── vendor/
+│   └── hdiffpatch-sys/      # HDiffPatch C/C++ ラッパーコード
 ├── Cargo.toml
 ├── src/
+│   ├── lib.rs               # ライブラリルート、全モジュールを公開
 │   ├── main.rs              # binary_patcher エントリポイント
 │   ├── bin/
 │   │   ├── apply_patch.rs   # apply_patch エントリポイント
 │   │   └── rollback_patch.rs# rollback_patch エントリポイント
 │   ├── cli.rs               # コマンドライン引数解析（clap）
+│   ├── ffi.rs               # HDiffPatch C ライブラリ FFI バインディング
+│   ├── hdiffpatch.rs        # パッチ作成・適用のラッパー
 │   ├── utils.rs             # SHA256、ファイル操作、パス安全性、バックアップ
-│   ├── hdiffpatch.rs        # hdiffz/hpatchz の検出と実行
 │   ├── manifest.rs          # マニフェスト型、JSON シリアライズ、検証
 │   ├── bundle.rs            # バンドル作成（Old/New → Patch）
 │   ├── apply.rs             # バンドル適用ロジック
 │   └── rollback.rs          # バンドルロールバックロジック
 └── tests/
-    └── integration_test.rs  # 20 のテスト（ユニット + 全フロー）
+    └── integration_test.rs  # ユニット + 全フロー統合テスト
 ```
 
 ## セキュリティ
@@ -204,9 +208,8 @@ cargo build --release
 ```
 
 スクリプトの自動処理：
-1. `cargo build --release` で 3 つのバイナリをコンパイル
-2. GitHub から最新の HDiffPatch をダウンロード（`hdiffz.exe` / `hpatchz.exe`）
-3. `Releases/binary_patcher_toolkit.zip` にパッケージ
+1. `cargo build --release` で 3 つのバイナリをコンパイル（ビルド時に HDiffPatch C ライブラリを自動DL・コンパイル）
+2. `Releases/binary_patcher_toolkit.zip` にパッケージ
 
 ### CI / CD
 
@@ -231,8 +234,11 @@ cargo build --release
 | シリアライズ | serde + serde_json |
 | ハッシュ | sha2 |
 | ディレクトリ走査 | walkdir |
+| 時間処理 | chrono |
+| TTY 検出 | atty |
 | エラーハンドリング | anyhow |
-| パッチエンジン | [HDiffPatch](https://github.com/sisong/HDiffPatch)（外部バイナリ） |
+| ビルド依存 | cc（C/C++ コンパイル）、reqwest + zip（HDiffPatch 自動DL） |
+| パッチエンジン | [HDiffPatch](https://github.com/sisong/HDiffPatch)（FFI 静的リンク） |
 
 ## ライセンス
 

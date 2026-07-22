@@ -5,9 +5,7 @@
 ---
 
 A tool for creating and applying binary patches with full-directory workflow support.
-Powered by [HDiffPatch](https://github.com/sisong/HDiffPatch) (`hdiffz` / `hpatchz`).
-
-Requires the `hdiffz` and `hpatchz` binaries at runtime (see [Installation](#installation)).
+Powered by [HDiffPatch](https://github.com/sisong/HDiffPatch) via FFI static linking — the C library is downloaded and compiled automatically at build time.
 
 ## Features
 
@@ -34,7 +32,7 @@ Requires the `hdiffz` and `hpatchz` binaries at runtime (see [Installation](#ins
 
 ### Pre-built binaries
 
-> **TODO**: Pre-built binaries are not yet available. Track [#1](https://github.com/100pangci/binary_patcher/issues/1) for release status.
+> **TODO**: Pre-built binaries are not yet officially released. Track [#1](https://github.com/100pangci/binary_patcher/issues/1) for release status.
 
 ### Build from source
 
@@ -44,18 +42,16 @@ cd binary_patcher
 cargo build --release
 ```
 
+The build automatically downloads and statically links the HDiffPatch C library — no extra dependencies required.
 The compiled binaries are located at `target/release/`.
 
-### HDiffPatch dependency
+### Packaging
 
-Download `hdiffz` and `hpatchz` from the [HDiffPatch releases page](https://github.com/sisong/HDiffPatch/releases).
-Place them in one of the following locations:
+Run `scripts/build.ps1` to build and package into `Releases/binary_patcher_toolkit.zip`:
 
-| Location | Example |
-|----------|---------|
-| Same directory as the executable | `.` |
-| `bin/` subdirectory | `./bin/` |
-| Any directory in `PATH` | — |
+```powershell
+.\scripts\build.ps1
+```
 
 ## Quick Start
 
@@ -109,7 +105,7 @@ The tool:
 
 1. Validates each file against `old_sha256`
 2. Backs up originals as `*.backup_before_patch`
-3. Applies patches via `hpatchz`
+3. Applies patches via the HDiffPatch engine
 4. Verifies output against `new_sha256`
 5. Copies new files, deletes removed files
 
@@ -131,6 +127,7 @@ Restores `*.backup_before_patch` backups and removes files that were added by th
 | `create <old> <new> <patch>` | Create a single patch file from two files |
 | `apply <old> <patch> <output>` | Apply a single patch file |
 | `bundle --base-dir <path>` | Build a bundle using a specific workspace directory |
+| `--copy-scripts` | (Compatibility flag, no-op in Rust version) |
 
 ### `apply_patch`
 
@@ -148,26 +145,32 @@ Restores `*.backup_before_patch` backups and removes files that were added by th
 
 ```
 .
+├── build.rs                 # Build script: auto-download & compile HDiffPatch C library
 ├── .github/workflows/
 │   ├── ci.yml               # CI: cargo check + test (multi-platform)
 │   └── build.yml            # Release: lint → test → build → GitHub Release
 ├── scripts/
-│   └── build.ps1            # Windows one-click build + HDiffPatch download + package
+│   ├── build.ps1            # Windows one-click build + package
+│   └── gen_test_data.ps1    # Test data generator
+├── vendor/
+│   └── hdiffpatch-sys/      # HDiffPatch C/C++ wrapper code
 ├── Cargo.toml
 ├── src/
+│   ├── lib.rs               # Library root, re-exports all modules
 │   ├── main.rs              # binary_patcher entry point
 │   ├── bin/
 │   │   ├── apply_patch.rs   # apply_patch entry point
 │   │   └── rollback_patch.rs# rollback_patch entry point
 │   ├── cli.rs               # CLI argument parsing (clap)
+│   ├── ffi.rs               # HDiffPatch C library FFI bindings
+│   ├── hdiffpatch.rs        # Patch create/apply invocation wrapper
 │   ├── utils.rs             # SHA256, file ops, path safety, backup
-│   ├── hdiffpatch.rs        # hdiffz/hpatchz discovery and invocation
 │   ├── manifest.rs          # Manifest type, JSON serialization, validation
 │   ├── bundle.rs            # Bundle creation (Old/New → Patch)
 │   ├── apply.rs             # Bundle application logic
 │   └── rollback.rs          # Bundle rollback logic
 └── tests/
-    └── integration_test.rs  # 20 tests (unit + full workflow)
+    └── integration_test.rs  # Unit + full-workflow integration tests
 ```
 
 ## Security
@@ -205,9 +208,8 @@ cargo build --release
 ```
 
 The script:
-1. Runs `cargo build --release` to compile all three binaries
-2. Downloads the latest HDiffPatch from GitHub (`hdiffz.exe` / `hpatchz.exe`)
-3. Packages everything into `Releases/binary_patcher_toolkit.zip`
+1. Runs `cargo build --release` to compile all three binaries (build.rs auto-downloads & compiles HDiffPatch C library)
+2. Packages everything into `Releases/binary_patcher_toolkit.zip`
 
 ### CI / CD
 
@@ -232,8 +234,11 @@ This project uses GitHub Actions:
 | Serialization | serde + serde_json |
 | Hashing | sha2 |
 | Directory walk | walkdir |
+| Time handling | chrono |
+| TTY detection | atty |
 | Error handling | anyhow |
-| Patch engine | [HDiffPatch](https://github.com/sisong/HDiffPatch) (external binary) |
+| Build deps | cc (C/C++ compile), reqwest + zip (auto-download HDiffPatch) |
+| Patch engine | [HDiffPatch](https://github.com/sisong/HDiffPatch) (FFI static link) |
 
 ## License
 
