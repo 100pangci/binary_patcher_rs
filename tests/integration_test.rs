@@ -1,27 +1,33 @@
 use std::path::{Path, PathBuf};
+#[cfg(unix)]
+use std::os::unix::fs::PermissionsExt;
 
 /// Create mock hdiffz/hpatchz executables for testing
 fn setup_mock_tools(test_dir: &Path) {
     let bin_dir = test_dir.join("bin");
     std::fs::create_dir_all(&bin_dir).unwrap();
 
-    // Mock hdiffz: copies new file to patch file
-    let hdiffz_content = format!(
-        r#"@echo off
-copy /y "%~3" "%~4" >nul
-exit /b 0
-"#
-    );
-    std::fs::write(bin_dir.join("hdiffz.bat"), &hdiffz_content).unwrap();
+    #[cfg(windows)]
+    {
+        // Mock hdiffz: copies third arg (new) to fourth arg (patch)
+        let hdiffz = "@echo off\r\ncopy /y \"%~3\" \"%~4\" >nul\r\nexit /b 0\r\n";
+        std::fs::write(bin_dir.join("hdiffz.bat"), hdiffz).unwrap();
+        // Mock hpatchz: copies third arg (patch) to fourth arg (output)
+        let hpatchz = "@echo off\r\ncopy /y \"%~3\" \"%~4\" >nul\r\nexit /b 0\r\n";
+        std::fs::write(bin_dir.join("hpatchz.bat"), hpatchz).unwrap();
+    }
 
-    // Mock hpatchz: copies old file to output file (simplest mock)
-    let hpatchz_content = format!(
-        r#"@echo off
-copy /y "%~3" "%~4" >nul
-exit /b 0
-"#
-    );
-    std::fs::write(bin_dir.join("hpatchz.bat"), &hpatchz_content).unwrap();
+    #[cfg(unix)]
+    {
+        let hdiffz = "#!/bin/sh\ncp -- \"$3\" \"$4\"\n";
+        let hpatchz = "#!/bin/sh\ncp -- \"$3\" \"$4\"\n";
+        let hdiffz_path = bin_dir.join("hdiffz");
+        let hpatchz_path = bin_dir.join("hpatchz");
+        std::fs::write(&hdiffz_path, hdiffz).unwrap();
+        std::fs::write(&hpatchz_path, hpatchz).unwrap();
+        std::fs::set_permissions(&hdiffz_path, PermissionsExt::from_mode(0o755)).unwrap();
+        std::fs::set_permissions(&hpatchz_path, PermissionsExt::from_mode(0o755)).unwrap();
+    }
 }
 
 /// Build test workspace with Old/New directories
