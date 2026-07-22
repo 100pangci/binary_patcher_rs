@@ -47,23 +47,21 @@ jobs:
       - name: Build release
         run: cargo build --release
 
-      - name: Package toolkit
+      - name: Package
         shell: pwsh
         run: |
-          $releaseDir = "Releases"
-          New-Item -ItemType Directory -Path $releaseDir -Force
-          Copy-Item "target\release\binary_patcher.exe" -Destination $releaseDir
-          Copy-Item "target\release\apply_patch.exe" -Destination $releaseDir
-          Copy-Item "target\release\rollback_patch.exe" -Destination $releaseDir
-          Compress-Archive -Path "$releaseDir\*.exe" -DestinationPath "$releaseDir\binary_patcher_toolkit.zip" -Force
+          $stage = "binary_patcher_rs"
+          New-Item -ItemType Directory -Path $stage -Force
+          Copy-Item "target\release\binary_patcher.exe" -Destination $stage
+          Copy-Item "target\release\apply_patch.exe" -Destination $stage
+          Copy-Item "target\release\rollback_patch.exe" -Destination $stage
+          Compress-Archive -Path "$stage\*" -DestinationPath "binary_patcher_rs_toolkit_win.zip" -Force
 
-      - name: Upload build artifacts
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: binary-patcher-windows-${{ github.ref_name || 'manual' }}
-          path: |
-            Releases/*.exe
-            Releases/binary_patcher_toolkit.zip
+          name: binary-patcher-windows
+          path: binary_patcher_rs_toolkit_win.zip
 
   build-linux:
     name: Build Linux
@@ -77,23 +75,17 @@ jobs:
       - name: Build release
         run: cargo build --release
 
-      - name: Package toolkit
+      - name: Package
         run: |
-          mkdir -p Releases
-          cp target/release/binary_patcher Releases/
-          cp target/release/apply_patch Releases/
-          cp target/release/rollback_patch Releases/
-          cd Releases && tar czf binary_patcher_toolkit.tar.gz binary_patcher apply_patch rollback_patch
+          mkdir -p binary_patcher_rs
+          cp target/release/binary_patcher target/release/apply_patch target/release/rollback_patch binary_patcher_rs/
+          tar czf binary_patcher_rs_toolkit_linux.tar.gz binary_patcher_rs
 
-      - name: Upload build artifacts
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: binary-patcher-linux-${{ github.ref_name || 'manual' }}
-          path: |
-            Releases/binary_patcher
-            Releases/apply_patch
-            Releases/rollback_patch
-            Releases/binary_patcher_toolkit.tar.gz
+          name: binary-patcher-linux
+          path: binary_patcher_rs_toolkit_linux.tar.gz
 
   build-macos:
     name: Build macOS
@@ -107,23 +99,17 @@ jobs:
       - name: Build release
         run: cargo build --release
 
-      - name: Package toolkit
+      - name: Package
         run: |
-          mkdir -p Releases
-          cp target/release/binary_patcher Releases/
-          cp target/release/apply_patch Releases/
-          cp target/release/rollback_patch Releases/
-          cd Releases && tar czf binary_patcher_toolkit.tar.gz binary_patcher apply_patch rollback_patch
+          mkdir -p binary_patcher_rs
+          cp target/release/binary_patcher target/release/apply_patch target/release/rollback_patch binary_patcher_rs/
+          tar czf binary_patcher_rs_toolkit_macos.tar.gz binary_patcher_rs
 
-      - name: Upload build artifacts
+      - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: binary-patcher-macos-${{ github.ref_name || 'manual' }}
-          path: |
-            Releases/binary_patcher
-            Releases/apply_patch
-            Releases/rollback_patch
-            Releases/binary_patcher_toolkit.tar.gz
+          name: binary-patcher-macos
+          path: binary_patcher_rs_toolkit_macos.tar.gz
 
   release:
     name: Create Release
@@ -136,10 +122,12 @@ jobs:
         with:
           path: artifacts
 
+      - name: Collect archives
+        run: |
+          mkdir -p release_files
+          find artifacts -type f \( -name "*.zip" -o -name "*.tar.gz" \) -exec cp {} release_files/ \;
+
       - uses: softprops/action-gh-release@v2
         with:
-          files: |
-            artifacts/**/*.exe
-            artifacts/**/*.tar.gz
-            artifacts/**/binary_patcher_toolkit.zip
+          files: release_files/*
           generate_release_notes: true
