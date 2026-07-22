@@ -1,0 +1,31 @@
+[package]
+name = "binary_patcher"
+version = "1.0.4"
+edition = "2024"
+description = "A small tool for creating and applying binary patches with HDiffPatch"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+sha2 = "0.10"
+walkdir = "2"
+anyhow = "1"
+chrono = "0.4"
+which = "7"
+atty = "0.2"
+
+[dev-dependencies]
+tempfile = "3"
+
+[[bin]]
+name = "binary_patcher"
+path = "src/main.rs"
+
+[[bin]]
+name = "apply_patch"
+path = "src/bin/apply_patch.rs"
+
+[[bin]]
+name = "rollback_patch"
+path = "src/bin/rollback_patch.rs"
