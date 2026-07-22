@@ -20,7 +20,14 @@ fn main() {
     build
         .cpp(true)
         .flag_if_supported("-std=c++11")
-        .flag_if_supported("/std:c++11")
+        .flag_if_supported("/std:c++11");
+
+    // pthread is needed on Linux/macOS for HDiffPatch's multi-threading
+    if !cfg!(windows) {
+        build.flag("-pthread");
+    }
+
+    build
         .include(&hd_path)
         .include(&src_dir)
         .include(&src_dir.join("HDiff"))
