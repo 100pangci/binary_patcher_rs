@@ -18,7 +18,7 @@ pub fn format_size(size_bytes: u64) -> String {
 pub fn sha256_of_file(path: &Path) -> anyhow::Result<String> {
     let mut file = std::fs::File::open(path)?;
     let mut hasher = Sha256::new();
-    let mut buffer = [0u8; 1024 * 1024];
+    let mut buffer = vec![0u8; 1024 * 1024];
     loop {
         let bytes_read = file.read(&mut buffer)?;
         if bytes_read == 0 {
