@@ -30,10 +30,6 @@ Powered by [HDiffPatch](https://github.com/sisong/HDiffPatch) via FFI static lin
 
 ## Installation
 
-### Pre-built binaries
-
-> **TODO**: Pre-built binaries are not yet officially released. Track [#1](https://github.com/100pangci/binary_patcher/issues/1) for release status.
-
 ### Build from source
 
 ```sh
@@ -224,8 +220,7 @@ This project uses GitHub Actions:
 
 ### TODO
 
-- [ ] Provide pre-built binary downloads
-- [ ] Windows binary signing
+- [x] Provide pre-built binary downloads
 
 ## Technical Stack
 
