@@ -325,19 +325,19 @@ Pop-Location
 
 # Verify applied result matches New
 Write-Host "  Verifying apply result..."
-$mismatch = $false
+$mismatch = 0
 Get-ChildItem -Path $NewDir -Recurse -File | ForEach-Object {
-    $rel = $_.FullName.Substring($NewDir.FullName.Length + 1) -replace '\\', '/'
+    $rel = [System.IO.Path]::GetRelativePath($NewDir, $_.FullName) -replace '\\', '/'
     $gameFile = Join-Path $GameDir $rel
     if (-not (Test-Path $gameFile)) {
         Write-Warning "Missing in game/: $rel"
-        $mismatch = $true
+        $mismatch++
     }
 }
-if (-not $mismatch) {
+if ($mismatch -eq 0) {
     Write-Host "  Apply verification: OK" -ForegroundColor Green
 } else {
-    Write-Host "  Apply verification: $mismatch files missing (expected if bundle excludes unchanged)" -ForegroundColor Yellow
+    Write-Host "  Apply verification: $mismatch files missing (expected if unchanged files excluded from bundle)" -ForegroundColor Yellow
 }
 
 Write-Host "  Rolling back..."
@@ -350,21 +350,21 @@ if ($LASTEXITCODE -ne 0) {
 }
 Pop-Location
 
-# Verify rollback result matches Old (check Old files exist in game after rollback)
+# Verify rollback result matches Old
 Write-Host "  Verifying rollback result..."
-$rollbackOk = $true
+$rollbackOk = 0
 Get-ChildItem -Path $OldDir -Recurse -File | ForEach-Object {
-    $rel = $_.FullName.Substring($OldDir.FullName.Length + 1) -replace '\\', '/'
+    $rel = [System.IO.Path]::GetRelativePath($OldDir, $_.FullName) -replace '\\', '/'
     $gameFile = Join-Path $GameDir $rel
     if (-not (Test-Path $gameFile)) {
         Write-Warning "Missing after rollback: $rel"
-        $rollbackOk = $false
+        $rollbackOk++
     }
 }
-if ($rollbackOk) {
+if ($rollbackOk -eq 0) {
     Write-Host "  Rollback verification: OK" -ForegroundColor Green
 } else {
-    Write-Host "  Rollback verification: some files missing (may be expected)" -ForegroundColor Yellow
+    Write-Host "  Rollback verification: $rollbackOk files missing" -ForegroundColor Yellow
 }
 
 Write-Host ""
