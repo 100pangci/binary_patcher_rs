@@ -47,49 +47,22 @@ jobs:
       - name: Build release
         run: cargo build --release
 
-      - name: Download HDiffPatch
-        shell: pwsh
-        run: |
-          $repo = "sisong/HDiffPatch"
-          $api = "https://api.github.com/repos/$repo/releases/latest"
-          $release = Invoke-RestMethod -Uri $api
-          $asset = $release.assets | Where-Object { $_.name -like "*windows64*" -or $_.name -like "*win64*" } | Select-Object -First 1
-          if (-not $asset) {
-            Write-Error "No windows64 asset found"
-            exit 1
-          }
-          $zipPath = "$env:TEMP\hdiffpatch.zip"
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile $zipPath
-          Expand-Archive -Path $zipPath -DestinationPath "$env:TEMP\hdiffpatch" -Force
-          $extracted = Get-ChildItem -Path "$env:TEMP\hdiffpatch" -Recurse -Include "hdiffz.exe", "hpatchz.exe"
-          foreach ($exe in $extracted) {
-            Copy-Item -Path $exe.FullName -Destination "target\release\"
-          }
-
       - name: Package toolkit
         shell: pwsh
         run: |
           $releaseDir = "Releases"
           New-Item -ItemType Directory -Path $releaseDir -Force
-          $staging = "$releaseDir\binary_patcher_toolkit"
-          New-Item -ItemType Directory -Path $staging -Force
-          Copy-Item "target\release\binary_patcher.exe" -Destination $staging
-          Copy-Item "target\release\apply_patch.exe" -Destination $staging
-          Copy-Item "target\release\rollback_patch.exe" -Destination $staging
-          if (Test-Path "target\release\hdiffz.exe") {
-            Copy-Item "target\release\hdiffz.exe" -Destination $staging
-            Copy-Item "target\release\hpatchz.exe" -Destination $staging
-          }
-          Compress-Archive -Path "$staging\*" -DestinationPath "$releaseDir\binary_patcher_toolkit.zip" -Force
+          Copy-Item "target\release\binary_patcher.exe" -Destination $releaseDir
+          Copy-Item "target\release\apply_patch.exe" -Destination $releaseDir
+          Copy-Item "target\release\rollback_patch.exe" -Destination $releaseDir
+          Compress-Archive -Path "$releaseDir\*.exe" -DestinationPath "$releaseDir\binary_patcher_toolkit.zip" -Force
 
       - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
           name: binary-patcher-windows-${{ github.ref_name || 'manual' }}
           path: |
-            Releases/binary_patcher.exe
-            Releases/apply_patch.exe
-            Releases/rollback_patch.exe
+            Releases/*.exe
             Releases/binary_patcher_toolkit.zip
 
   release:
