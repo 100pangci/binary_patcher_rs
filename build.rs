@@ -139,12 +139,10 @@ fn main() {
     println!("cargo:rerun-if-changed=vendor/hdiffpatch-sys/hdiffpatch_wrapper.h");
 }
 
-const FALLBACK_TAG: &str = "v5.1.0";
-
-fn get_latest_tag(cache_dir: &Path, client: &reqwest::blocking::Client) -> String {
+fn get_latest_tag(cache_dir: &Path) -> String {
     let version_file = cache_dir.join("version.txt");
 
-    // Try cached version first
+    // Use cached version if available
     if let Ok(v) = std::fs::read_to_string(&version_file) {
         let v = v.trim();
         if !v.is_empty() {
@@ -153,28 +151,63 @@ fn get_latest_tag(cache_dir: &Path, client: &reqwest::blocking::Client) -> Strin
         }
     }
 
-    // Try GitHub API
-    println!("cargo:warning=Fetching latest HDiffPatch release from API...");
-    let resp = client
-        .get(HDIFFPATCH_REPO_API)
-        .send();
+    // Build authenticated client (uses GITHUB_TOKEN in CI for higher rate limits)
+    let mut client_builder = reqwest::blocking::Client::builder()
+        .user_agent("BinaryPatcher-BuildScript/2.0");
+    if let Ok(token) = std::env::var("GITHUB_TOKEN").or_else(|_| std::env::var("GH_TOKEN")) {
+        let mut h = reqwest::header::HeaderMap::new();
+        if let Ok(val) = reqwest::header::HeaderValue::from_str(&format!("Bearer {token}")) {
+            h.insert(reqwest::header::AUTHORIZATION, val);
+        }
+        client_builder = client_builder.default_headers(h);
+    }
+    let client = client_builder.build().expect("Failed to create HTTP client");
 
-    if let Ok(resp) = resp {
+    // Try GitHub API to find latest release tag
+    println!("cargo:warning=Fetching latest HDiffPatch release from GitHub API...");
+    let mut tag_name: Option<String> = None;
+
+    if let Ok(resp) = client.get(HDIFFPATCH_REPO_API).send() {
         if let Ok(release) = resp.json::<serde_json::Value>() {
-            if let Some(tag_name) = release["tag_name"].as_str() {
-                if !tag_name.is_empty() {
-                    println!("cargo:warning=Latest HDiffPatch release: {tag_name}");
-                    std::fs::create_dir_all(cache_dir).ok();
-                    std::fs::write(&version_file, tag_name).ok();
-                    return tag_name.to_string();
+            tag_name = release["tag_name"].as_str().map(|s| s.to_string());
+        }
+    }
+
+    // Fallback: scrape the releases page HTML for the latest tag
+    if tag_name.is_none() {
+        println!("cargo:warning=API failed, falling back to scraping releases page...");
+        if let Ok(resp) = client
+            .get("https://github.com/sisong/HDiffPatch/releases/latest")
+            .send()
+        {
+            if let Ok(html) = resp.text() {
+                // Look for /sisong/HDiffPatch/releases/tag/vX.Y.Z in the HTML
+                for line in html.lines() {
+                    if let Some(start) = line.find("/sisong/HDiffPatch/releases/tag/v") {
+                        let rest = &line[start..];
+                        if let Some(end) = rest.find('"') {
+                            let tag = rest[..end].rsplit('/').next().unwrap_or("");
+                            if !tag.is_empty() {
+                                tag_name = Some(tag.to_string());
+                                break;
+                            }
+                        }
+                    }
                 }
             }
         }
     }
 
-    // Fallback to hardcoded version
-    println!("cargo:warning=API failed, using fallback HDiffPatch version: {FALLBACK_TAG}");
-    FALLBACK_TAG.to_string()
+    let tag_name = tag_name.unwrap_or_else(|| {
+        panic!(
+            "Failed to determine latest HDiffPatch version. "
+        )
+    });
+
+    println!("cargo:warning=Latest HDiffPatch release: {tag_name}");
+    std::fs::create_dir_all(cache_dir).ok();
+    std::fs::write(&version_file, &tag_name).ok();
+    tag_name
 }
 
 fn download_and_extract(zip_path: &PathBuf, expected_dir: &PathBuf) {
@@ -185,7 +218,7 @@ fn download_and_extract(zip_path: &PathBuf, expected_dir: &PathBuf) {
         .build()
         .expect("Failed to create HTTP client");
 
-    let tag_name = get_latest_tag(cache_dir, &client);
+    let tag_name = get_latest_tag(cache_dir);
 
     let download_url = format!(
         "https://github.com/sisong/HDiffPatch/archive/refs/tags/{tag_name}.zip"
