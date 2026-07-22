@@ -5,6 +5,12 @@
 #include "libHDiffPatch/HDiff/diff.h"
 #include "libHDiffPatch/HPatch/patch.h"
 
+// Enable zlib compression plugin
+#define _CompressPlugin_zlib 1
+#define _IsNeedIncludeDefaultCompressHead 1
+#include "compress_plugin_demo.h"
+#include "decompress_plugin_demo.h"
+
 struct Cache {
     unsigned char* data;
 };
@@ -15,7 +21,13 @@ static hpatch_BOOL on_diff_info(sspatch_listener_t* listener,
                                 unsigned char** out_temp_cache,
                                 unsigned char** out_temp_cacheEnd)
 {
-    *out_decompressPlugin = nullptr;
+    // Use zlib decompress plugin for compressed patches
+    if (info->compressedSize > 0) {
+        *out_decompressPlugin = &zlibDecompressPlugin;
+    } else {
+        *out_decompressPlugin = nullptr;
+    }
+
     size_t cacheSize = (size_t)info->stepMemSize + hpatch_kStreamCacheSize * 3;
     auto* cache = (Cache*)listener->import;
     cache->data = (unsigned char*)std::malloc(cacheSize);
@@ -41,15 +53,21 @@ int hdiffpatch_create(
     const unsigned char* old_data, size_t old_size,
     const unsigned char* new_data, size_t new_size,
     unsigned char** out_patch, size_t* out_patch_size,
-    int thread_num)
+    int thread_num,
+    int use_compression)
 {
     try {
         std::vector<unsigned char> diff;
+        const hdiff_TCompress* compress = nullptr;
+        if (use_compression) {
+            // zlibCompressPlugin has hdiff_TCompress as its first member; safe cast
+            compress = (const hdiff_TCompress*)&zlibCompressPlugin;
+        }
         create_single_compressed_diff(
             new_data, new_data + new_size,
             old_data, old_data + old_size,
             diff,
-            nullptr,
+            compress,
             1024 * 256, 4, false,
             (size_t)thread_num
         );

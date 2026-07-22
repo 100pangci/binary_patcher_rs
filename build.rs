@@ -2,6 +2,42 @@ use std::path::{Path, PathBuf};
 
 const HDIFFPATCH_REPO_API: &str = "https://api.github.com/repos/sisong/HDiffPatch/releases/latest";
 
+fn download_zlib(version: &str, cache_dir: &Path) -> PathBuf {
+    let dir_name = format!("zlib-{version}");
+    let zlib_dir = cache_dir.join(&dir_name);
+    if zlib_dir.exists() {
+        return zlib_dir;
+    }
+    println!("cargo:warning=Downloading zlib {version}...");
+    let url = format!("https://github.com/madler/zlib/archive/refs/tags/v{version}.zip");
+    let client = reqwest::blocking::Client::builder()
+        .user_agent("BinaryPatcher-BuildScript/2.0")
+        .build().unwrap();
+    let response = client.get(&url).send().expect("Failed to download zlib");
+    let bytes = response.bytes().expect("Failed to read zlib archive");
+
+    // Extract zip
+    let cursor = std::io::Cursor::new(&bytes);
+    let mut archive = zip::ZipArchive::new(cursor).expect("Failed to read zlib zip archive");
+    for i in 0..archive.len() {
+        let mut entry = archive.by_index(i).unwrap();
+        let name = entry.name().replace('\\', "/");
+        let root_prefix = format!("{dir_name}/");
+        if let Some(rest) = name.strip_prefix(&root_prefix) {
+            if rest.is_empty() || rest.ends_with('/') { continue; }
+            let out_path = zlib_dir.join(rest);
+            if let Some(p) = out_path.parent() {
+                std::fs::create_dir_all(p).ok();
+            }
+            let mut out_file = std::fs::File::create(&out_path)
+                .unwrap_or_else(|e| panic!("Failed to create {}: {e}", out_path.display()));
+            std::io::copy(&mut entry, &mut out_file).unwrap();
+        }
+    }
+    println!("cargo:warning=zlib {version} extracted to {}", zlib_dir.display());
+    zlib_dir
+}
+
 fn main() {
     let manifest_dir = PathBuf::from(std::env::var("CARGO_MANIFEST_DIR").unwrap());
     let cache_dir = manifest_dir.join("target").join(".hdiffpatch-cache");
@@ -12,6 +48,21 @@ fn main() {
         download_and_extract(&zip_path, &hd_path);
     }
 
+    // Download and compile zlib
+    let zlib_version = "1.3.1";
+    let zlib_dir = download_zlib(zlib_version, &cache_dir);
+
+    let mut zlib_build = cc::Build::new();
+    zlib_build.include(&zlib_dir);
+    for f in &["adler32", "compress", "crc32", "deflate", "inflate",
+               "inftrees", "inffast", "trees", "uncompr", "zutil"] {
+        zlib_build.file(zlib_dir.join(format!("{f}.c")));
+    }
+    // Define NO_GZCOMPRESS and similar to reduce size
+    zlib_build.define("NO_GZCOMPRESS", None);
+    zlib_build.define("NO_GZIP", None);
+    zlib_build.compile("zlib");
+
     let src_dir = hd_path.join("libHDiffPatch");
     let parallel_dir = hd_path.join("libParallel");
 
@@ -20,6 +71,7 @@ fn main() {
         &src_dir.join("HPatch").join("hpatch_mt"), &src_dir.join("HPatchLite"),
         &parallel_dir, &hd_path.join("dirDiffPatch"),
         &hd_path.join("bsdiff_wrapper"), &hd_path.join("vcdiff_wrapper"),
+        &zlib_dir,
     ];
 
     // Compile C files (not C++)
@@ -43,6 +95,11 @@ fn main() {
     c_build.file(src_dir.join("HPatch").join("hpatch_mt").join("_hcache_old_mt.c"));
     c_build.file(src_dir.join("HPatch").join("hpatch_mt").join("hpatch_mt.c"));
     c_build.file(parallel_dir.join("parallel_import_c.c"));
+    // Add zlib source to the C build for hdiffpatch_c (needed by patch.c for decompression)
+    for f in &["adler32", "compress", "crc32", "deflate", "inflate",
+               "inftrees", "inffast", "trees", "uncompr", "zutil"] {
+        c_build.file(zlib_dir.join(format!("{f}.c")));
+    }
     c_build.compile("hdiffpatch_c");
 
     // Compile C++ files
@@ -57,6 +114,8 @@ fn main() {
     if !cfg!(windows) {
         cpp_build.flag("-pthread");
     }
+    // Define zlib compression plugin for the wrapper
+    cpp_build.define("_CompressPlugin_zlib", None);
 
     cpp_build.file(src_dir.join("HDiff").join("diff.cpp"));
     cpp_build.file(src_dir.join("HDiff").join("private_diff").join("suffix_string.cpp"));
