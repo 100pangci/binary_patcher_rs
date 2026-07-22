@@ -1,4 +1,5 @@
 pub mod utils;
+pub mod ffi;
 pub mod hdiffpatch;
 pub mod manifest;
 pub mod cli;
