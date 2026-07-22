@@ -139,26 +139,53 @@ fn main() {
     println!("cargo:rerun-if-changed=vendor/hdiffpatch-sys/hdiffpatch_wrapper.h");
 }
 
+const FALLBACK_TAG: &str = "v5.1.0";
+
+fn get_latest_tag(cache_dir: &Path, client: &reqwest::blocking::Client) -> String {
+    let version_file = cache_dir.join("version.txt");
+
+    // Try cached version first
+    if let Ok(v) = std::fs::read_to_string(&version_file) {
+        let v = v.trim();
+        if !v.is_empty() {
+            println!("cargo:warning=Using cached HDiffPatch version: {v}");
+            return v.to_string();
+        }
+    }
+
+    // Try GitHub API
+    println!("cargo:warning=Fetching latest HDiffPatch release from API...");
+    let resp = client
+        .get(HDIFFPATCH_REPO_API)
+        .send();
+
+    if let Ok(resp) = resp {
+        if let Ok(release) = resp.json::<serde_json::Value>() {
+            if let Some(tag_name) = release["tag_name"].as_str() {
+                if !tag_name.is_empty() {
+                    println!("cargo:warning=Latest HDiffPatch release: {tag_name}");
+                    std::fs::create_dir_all(cache_dir).ok();
+                    std::fs::write(&version_file, tag_name).ok();
+                    return tag_name.to_string();
+                }
+            }
+        }
+    }
+
+    // Fallback to hardcoded version
+    println!("cargo:warning=API failed, using fallback HDiffPatch version: {FALLBACK_TAG}");
+    FALLBACK_TAG.to_string()
+}
+
 fn download_and_extract(zip_path: &PathBuf, expected_dir: &PathBuf) {
-    println!("cargo:warning=Fetching latest HDiffPatch release...");
+    let cache_dir = expected_dir.parent().unwrap();
 
     let client = reqwest::blocking::Client::builder()
         .user_agent("BinaryPatcher-BuildScript/2.0")
         .build()
         .expect("Failed to create HTTP client");
 
-    let release: serde_json::Value = client
-        .get(HDIFFPATCH_REPO_API)
-        .send()
-        .expect("Failed to send release API request")
-        .json()
-        .expect("Failed to parse release API response");
-
-    let tag_name = release["tag_name"]
-        .as_str()
-        .expect("Failed to get tag_name from release API");
-
-    println!("cargo:warning=Latest HDiffPatch release: {tag_name}");
+    let tag_name = get_latest_tag(cache_dir, &client);
 
     let download_url = format!(
         "https://github.com/sisong/HDiffPatch/archive/refs/tags/{tag_name}.zip"
@@ -191,7 +218,7 @@ fn download_and_extract(zip_path: &PathBuf, expected_dir: &PathBuf) {
 
     // GitHub strips the "v" prefix from tag names in archive root directory names.
     // e.g. tag "v5.1.0" produces archive root "HDiffPatch-5.1.0/"
-    let archive_version = tag_name.strip_prefix('v').unwrap_or(tag_name);
+    let archive_version = tag_name.strip_prefix('v').unwrap_or(&tag_name);
     let root_prefix = format!("HDiffPatch-{archive_version}/");
 
     for i in 0..archive.len() {
