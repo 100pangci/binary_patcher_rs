@@ -11,6 +11,13 @@ pub struct Cli {
     )]
     pub copy_scripts: bool,
 
+    #[arg(
+        long = "no-compress",
+        default_value_t = false,
+        help = "禁用补丁压缩（默认启用 zlib 压缩）"
+    )]
+    pub no_compress: bool,
+
     #[command(subcommand)]
     pub command: Option<Commands>,
 }

@@ -124,6 +124,7 @@ binary_patcher
 | `create <旧文件> <新文件> <补丁文件>` | 对两个文件创建单个补丁 |
 | `apply <旧文件> <补丁文件> <输出文件>` | 应用单个补丁 |
 | `bundle --base-dir <路径>` | 指定工作目录执行打包 |
+| `--no-compress` | 禁用补丁压缩（默认启用 zlib 压缩） |
 | `--copy-scripts` | （兼容选项，Rust 版本无效） |
 
 ### `apply_patch`
@@ -229,7 +230,7 @@ cargo build --release
 | 语言 | Rust（edition 2024） |
 | CLI 框架 | clap（derive 模式） |
 | 序列化 | serde + serde_json |
-| 哈希 | sha2 |
+| 哈希 | SHA-256（sha2 crate） |
 | 目录遍历 | walkdir |
 | 时间处理 | chrono |
 | 终端检测 | atty |

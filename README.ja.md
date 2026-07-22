@@ -127,6 +127,8 @@ binary_patcher
 | `create <旧> <新> <パッチ>` | 2 つのファイルから単一のパッチファイルを作成 |
 | `apply <旧> <パッチ> <出力>` | 単一のパッチファイルを適用 |
 | `bundle --base-dir <パス>` | 指定したワークスペースディレクトリでバンドルを生成 |
+| `--no-compress` | パッチ圧縮を無効化（デフォルト：zlib圧縮有効） |
+| `--copy-scripts` | （互換オプション、Rust版では無効） |
 | `--copy-scripts` | （互換オプション、Rust 版では無効） |
 
 ### `apply_patch`
@@ -232,7 +234,7 @@ cargo build --release
 | 言語 | Rust（edition 2024） |
 | CLI フレームワーク | clap（derive モード） |
 | シリアライズ | serde + serde_json |
-| ハッシュ | sha2 |
+| ハッシュ | SHA-256（sha2 crate） |
 | ディレクトリ走査 | walkdir |
 | 時間処理 | chrono |
 | TTY 検出 | atty |

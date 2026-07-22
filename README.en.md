@@ -127,6 +127,8 @@ Restores `*.backup_before_patch` backups and removes files that were added by th
 | `create <old> <new> <patch>` | Create a single patch file from two files |
 | `apply <old> <patch> <output>` | Apply a single patch file |
 | `bundle --base-dir <path>` | Build a bundle using a specific workspace directory |
+| `--no-compress` | Disable patch compression (default: zlib compression enabled) |
+| `--copy-scripts` | (Compatibility option, no effect in Rust version) |
 | `--copy-scripts` | (Compatibility flag, no-op in Rust version) |
 
 ### `apply_patch`
@@ -232,7 +234,7 @@ This project uses GitHub Actions:
 | Language | Rust (edition 2024) |
 | CLI framework | clap (derive) |
 | Serialization | serde + serde_json |
-| Hashing | sha2 |
+| Hashing | SHA-256 (sha2 crate) |
 | Directory walk | walkdir |
 | Time handling | chrono |
 | TTY detection | atty |

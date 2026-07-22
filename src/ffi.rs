@@ -1,7 +1,7 @@
 use std::ffi::c_void;
 use std::ptr::null_mut;
 
-unsafe unsafe extern "C" {
+unsafe extern "C" {
     fn hdiffpatch_create(
         old_data: *const u8,
         old_size: usize,
@@ -30,6 +30,7 @@ pub fn create_patch(
     old_data: &[u8],
     new_data: &[u8],
     thread_num: u32,
+    use_compression: bool,
 ) -> Result<Vec<u8>, String> {
     let mut out_patch: *mut u8 = null_mut();
     let mut out_patch_size: usize = 0;
@@ -43,6 +44,7 @@ pub fn create_patch(
             &mut out_patch,
             &mut out_patch_size,
             thread_num as i32,
+            use_compression as i32,
         )
     };
 

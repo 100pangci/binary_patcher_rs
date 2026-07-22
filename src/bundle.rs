@@ -3,7 +3,7 @@ use crate::manifest::{Manifest, ChangedEntry, AddedEntry, DeletedEntry, INSTRUCT
 use crate::utils::{format_size, sha256_of_file, relative_file_map, ensure_parent_dir};
 use std::path::Path;
 
-pub fn build_patch_bundle(base_dir: &Path) -> anyhow::Result<()> {
+pub fn build_patch_bundle(base_dir: &Path, use_compression: bool) -> anyhow::Result<()> {
     let old_dir = base_dir.join("Old");
     let new_dir = base_dir.join("New");
     let patch_dir = base_dir.join("Patch");
@@ -41,7 +41,7 @@ pub fn build_patch_bundle(base_dir: &Path) -> anyhow::Result<()> {
 
                 let patch_output = patch_dir.join(format!("{relative_path}.patch"));
                 println!("[变更] {relative_path}");
-                create_patch(old, new, &patch_output)?;
+                create_patch(old, new, &patch_output, use_compression)?;
                 manifest.changed.push(ChangedEntry {
                     path: relative_path.clone(),
                     old_sha256: old_hash,
@@ -88,7 +88,7 @@ pub fn build_patch_bundle(base_dir: &Path) -> anyhow::Result<()> {
     Ok(())
 }
 
-fn create_patch(old_file: &Path, new_file: &Path, patch_file: &Path) -> anyhow::Result<()> {
+fn create_patch(old_file: &Path, new_file: &Path, patch_file: &Path, use_compression: bool) -> anyhow::Result<()> {
     ensure_parent_dir(patch_file)?;
     let old_size = std::fs::metadata(old_file)?.len();
     let new_size = std::fs::metadata(new_file)?.len();
@@ -97,7 +97,7 @@ fn create_patch(old_file: &Path, new_file: &Path, patch_file: &Path) -> anyhow::
     println!("  正在读取新文件: {}", new_file.display());
     println!("  正在调用 HDiffPatch 生成补丁...");
 
-    let thread_count = run_hdiffz(old_file, new_file, patch_file)?;
+    let thread_count = run_hdiffz(old_file, new_file, patch_file, use_compression)?;
     let patch_size = std::fs::metadata(patch_file)?.len();
 
     println!("  {}", "-".repeat(30));

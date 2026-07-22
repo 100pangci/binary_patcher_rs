@@ -14,6 +14,7 @@ pub fn run_hdiffz(
     old_file: &Path,
     new_file: &Path,
     patch_file: &Path,
+    use_compression: bool,
 ) -> anyhow::Result<u32> {
     let thread_count = get_recommended_thread_count();
 
@@ -22,7 +23,7 @@ pub fn run_hdiffz(
     let new_data = std::fs::read(new_file)
         .map_err(|e| anyhow::anyhow!("读取新文件失败 {}: {e}", new_file.display()))?;
 
-    let patch_data = ffi::create_patch(&old_data, &new_data, thread_count)
+    let patch_data = ffi::create_patch(&old_data, &new_data, thread_count, use_compression)
         .map_err(|e| anyhow::anyhow!("创建补丁失败: {e}"))?;
 
     crate::utils::ensure_parent_dir(patch_file)?;
