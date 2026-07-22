@@ -48,8 +48,6 @@ cargo build --release
 .\scripts\build.ps1
 ```
 
-关注 [#1](https://github.com/100pangci/binary_patcher/issues/1) 获取正式发布状态。
-
 ## 快速开始
 
 ### 1. 生成整目录补丁
@@ -220,8 +218,7 @@ cargo build --release
 
 ### TODO
 
-- [ ] 提供预编译二进制下载
-- [ ] Windows 二进制签名
+- [x] 提供预编译二进制下载
 
 ## 技术栈
 
